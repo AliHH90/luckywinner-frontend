@@ -89,8 +89,18 @@ const router = createRouter({
 });
 
 // گارد مسیرها
-router.beforeEach((to, from, next) => {
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
+
+  // اگر توکن داریم ولی user در حافظه نیست، یک بار از /me بگیر
+  if (authStore.token && !authStore.user) {
+    try {
+      await authStore.loadCurrentUser();
+    } catch (e) {
+      // اگر خطا بود، کاربر را خارج کن
+      authStore.logout();
+    }
+  }
 
   // نیاز به لاگین
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {

@@ -55,6 +55,24 @@
       <p v-if="errorMessage" class="status status-error">
         {{ errorMessage }}
       </p>
+
+      <!-- اضافه شد: نمایش نام برنده فعلی در صورتی که قبلاً مشخص شده باشد -->
+      <div
+        v-if="winnerAlreadySelected && winnerName"
+        class="winner-info1"
+      >
+        <p class="winner-text1">
+          برنده این مسابقه:
+          <strong>{{ winnerName }}</strong>
+          <span v-if="winnerPhoneMasked">
+            ({{ winnerPhoneMasked }})
+          </span>
+        </p>
+
+        <button class="winner-button1" @click="goToWinners">
+          رفتن به صفحه برنده‌ها
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -63,6 +81,7 @@
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../store/authStore";
+import api from "../api/axios";
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -79,6 +98,11 @@ const submitting = ref(false);
 const successMessage = ref("");
 const errorMessage = ref("");
 const successLocked = ref(false); // بعد از برنده شدن، دیگر اجازه ارسال مجدد ندهیم
+
+// جدید:
+const winnerName = ref(null);
+const winnerPhoneMasked = ref(null);
+const winnerAlreadySelected = ref(false);
 
 const trimmedCode = computed(() => code.value.trim());
 
@@ -113,6 +137,11 @@ async function submitCode() {
   successMessage.value = "";
   errorMessage.value = "";
 
+  // اضافه شد: هر بار قبل از ارسال، وضعیت قبلی winner را پاک کن
+  winnerAlreadySelected.value = false;
+  winnerName.value = null;
+  winnerPhoneMasked.value = null;
+
   try {
     const res = await fetch(`${API_BASE}/competitions/current/enter-code`, {
       method: "POST",
@@ -138,6 +167,13 @@ async function submitCode() {
         data.message || rawText || res.statusText || `HTTP ${res.status}`;
       errorMessage.value = msg;
       successMessage.value = "";
+
+      // اضافه شد: اگر بک‌اند نام برنده را فرستاد، اینجا ذخیره کن
+      if (data.winnerName) {
+        winnerAlreadySelected.value = true;
+        winnerName.value = data.winnerName;
+        winnerPhoneMasked.value = data.winnerPhoneMasked || null;
+      }
       return;
     }
 
@@ -146,6 +182,10 @@ async function submitCode() {
       data.message || "کد با موفقیت ثبت شد. اگر اولین نفر بودید، برنده شده‌اید.";
     successMessage.value = msg;
     errorMessage.value = "";
+
+    winnerAlreadySelected.value = false; // اضافه شد: در حالت موفق، پیام برنده قبلی را پنهان کن
+    winnerName.value = null;
+    winnerPhoneMasked.value = null;
 
     // اگر success=true از بک‌اند برگشته، یعنی یا برنده شده یا قبلاً برنده بوده
     if (data.success === true) {
@@ -158,6 +198,13 @@ async function submitCode() {
   } finally {
     submitting.value = false;
   }
+}
+
+// اضافه شد: رفتن به صفحه برنده‌ها
+function goToWinners() {
+  // اگر در router برای صفحه برنده‌ها name تعریف کرده‌ای می‌توانی از name استفاده کنی
+  // router.push({ name: "winners" });
+  router.push("/winners");
 }
 
 function goBack() {
@@ -331,23 +378,100 @@ onMounted(() => {
   border: 1px solid rgba(220, 38, 38, 0.2);
 }
 
+/* ✅ باکس سبز نمایش برنده (مطابق winner-info1 در HTML) */
+.winner-info1 {
+  margin-top: 1.5rem;
+  padding: 1.7rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #34d399 0%, #059669 100%);
+  color: white;
+  text-align: center;
+  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.35);
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* متن داخل باکس */
+.winner-text1 {
+  margin: 0 0 1rem 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.winner-text1 strong {
+  font-size: 1.5rem;
+  font-weight: 900;
+}
+
+/* دکمه رفتن به صفحه برنده‌ها (مطابق winner-button1 در HTML) */
+.winner-button1 {
+  padding: 0.9rem 1.6rem;
+  background: #ffffff;
+  color: #065f46;
+  font-size: 1.05rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  transition: all 0.25s ease;
+}
+
+.winner-button1:hover {
+  background: #ecfdf5;
+  transform: translateY(-3px);
+}
+
+.winner-button1:active {
+  transform: translateY(-1px);
+}
+
+/* انیمیشن ظاهر شدن */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ریسپانسیو موبایل */
 @media (max-width: 768px) {
   .page-container {
     padding: 1rem;
   }
-  
+
   .page-title {
     font-size: 2rem;
   }
-  
+
   .card {
     padding: 2rem 1.5rem;
   }
-  
+
   .btn-primary,
   .btn-secondary {
     width: 100%;
     margin: 0.25rem 0;
   }
+
+  .winner-info1 {
+    padding: 1.4rem;
+  }
+
+  .winner-text1 {
+    font-size: 1.2rem;
+  }
+
+  .winner-text1 strong {
+    font-size: 1.4rem;
+  }
+
+  .winner-button1 {
+    width: 100%;
+  }
 }
 </style>
+

@@ -116,12 +116,18 @@ const saveName = async () => {
 
   try {
     const body = { fullName: newFullName.value.trim() };
-    const data = await apiPut("/user/profile/name", body, authStore.token);
+    const data = await apiPut("/me/profile", body, authStore.token);
 
     nameMessage.value = data.message || "نام با موفقیت تغییر کرد.";
     if (profile.value) {
       profile.value.fullName = newFullName.value.trim();
     }
+
+    if (authStore.user) {
+      authStore.user.fullName = newFullName.value.trim();
+      localStorage.setItem("user", JSON.stringify(authStore.user));
+    }
+
   } catch (e) {
     nameError.value = e.message || "خطا در تغییر نام.";
   } finally {
@@ -149,16 +155,18 @@ const changePassword = async () => {
 
   try {
     const body = {
-      oldPassword: currentPassword.value,
+      currentPassword: currentPassword.value, // قبلاً oldPassword بود
       newPassword: newPassword.value,
     };
-    const data = await apiPut("/user/profile/password", body, authStore.token);
+    console.log("changePassword body:", body); // برای اطمینان از مقدار
+    const data = await apiPut("/me/password", body, authStore.token);
 
     passwordMessage.value = data.message || "رمز عبور با موفقیت تغییر کرد.";
     currentPassword.value = "";
     newPassword.value = "";
     confirmPassword.value = "";
   } catch (e) {
+    console.error("changePassword error:", e);
     passwordError.value = e.message || "خطا در تغییر رمز عبور.";
   } finally {
     changingPassword.value = false;

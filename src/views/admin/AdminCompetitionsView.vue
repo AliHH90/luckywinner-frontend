@@ -135,6 +135,24 @@
               <button class="btn-small" @click="selectCompetition(comp)">
                 مدیریت سؤال
               </button>
+              <button
+                class="btn-danger"
+                :disabled="loadingDelete"
+                @click="deleteQuestion(comp.id)"
+              >
+                حذف سؤال
+              </button>
+              <button
+                class="btn-danger"
+                :disabled="loadingDelete"
+                @click="deleteCompetition(comp.id)"
+              >
+                حذف مسابقه
+              </button>
+
+              <p v-if="deleteError" class="status status-error">
+                {{ deleteError }}
+              </p>
             </td>
           </tr>
         </tbody>
@@ -183,35 +201,19 @@
           <label>گزینه صحیح:</label>
           <div class="radio-row">
             <label>
-              <input
-                type="radio"
-                value="A"
-                v-model="qForm.correctOption"
-              />
+              <input type="radio" value="A" v-model="qForm.correctOption" />
               A
             </label>
             <label>
-              <input
-                type="radio"
-                value="B"
-                v-model="qForm.correctOption"
-              />
+              <input type="radio" value="B" v-model="qForm.correctOption" />
               B
             </label>
             <label>
-              <input
-                type="radio"
-                value="C"
-                v-model="qForm.correctOption"
-              />
+              <input type="radio" value="C" v-model="qForm.correctOption" />
               C
             </label>
             <label>
-              <input
-                type="radio"
-                value="D"
-                v-model="qForm.correctOption"
-              />
+              <input type="radio" value="D" v-model="qForm.correctOption" />
               D
             </label>
           </div>
@@ -270,6 +272,10 @@ const qSaving = ref(false);
 const qError = ref("");
 const qMessage = ref("");
 
+// برای حذف سؤال
+const loadingDelete = ref(false);
+const deleteError = ref("");
+
 // -------------- helpers --------------
 function authHeaders(json = true) {
   const h = {};
@@ -280,7 +286,6 @@ function authHeaders(json = true) {
 
 function formatDateTime(dt) {
   if (!dt) return "";
-  // بک‌اند معمولاً ISO می‌دهد، همین را کوتاه می‌کنیم
   return String(dt).replace("T", " ").substring(0, 16);
 }
 
@@ -299,7 +304,6 @@ async function loadCompetitions() {
     const data = await res.json();
     competitions.value = data || [];
 
-    // فیلدهای کد ورودی را از روی لیست پر می‌کنیم
     competitions.value.forEach((c) => {
       codeInputs[c.id] = c.correctCode || "";
     });
@@ -340,7 +344,7 @@ async function createCompetition() {
     }
     await res.json();
     createMessage.value = "مسابقه با موفقیت ایجاد شد.";
-    // فرم را خالی کن
+
     newComp.title = "";
     newComp.description = "";
     newComp.roundNumber = 1;
@@ -355,6 +359,39 @@ async function createCompetition() {
       "خطا در ایجاد مسابقه: " + (e.message || "نامشخص");
   } finally {
     creating.value = false;
+  }
+}
+
+// -------------- حذف سؤال مسابقه --------------
+async function deleteCompetition(competitionId) {
+  if (!competitionId || loadingDelete.value) return;
+
+  if (!confirm("آیا از حذف این مسابقه مطمئن هستید؟")) return;
+
+  loadingDelete.value = true;
+  deleteError.value = "";
+
+  try {
+    const res = await fetch(`${API_BASE}/admin/competitions/${competitionId}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${authStore.token}`,
+      },
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || "خطا در حذف مسابقه");
+    }
+
+    // از لیست UI هم حذف کن
+    competitions.value = competitions.value.filter(
+      (c) => c.id !== competitionId
+    );
+  } catch (e) {
+    deleteError.value = e.message || "خطا در حذف مسابقه";
+  } finally {
+    loadingDelete.value = false;
   }
 }
 
@@ -380,7 +417,6 @@ async function saveCode(comp) {
       const txt = await res.text();
       throw new Error(txt || res.statusText);
     }
-    // در لیست هم مقدار را به‌روز می‌کنیم
     comp.correctCode = code;
   } catch (e) {
     console.error(e);
@@ -447,7 +483,6 @@ async function loadQuestion(compId) {
       }
     );
     if (!res.ok) {
-      // اگر 404 بود یعنی هنوز سؤالی ثبت نشده → فرم خالی بماند
       if (res.status === 404) {
         qMessage.value = "برای این مسابقه هنوز سؤالی ثبت نشده است.";
         return;
@@ -461,11 +496,9 @@ async function loadQuestion(compId) {
     qForm.optionB = data.optionB || "";
     qForm.optionC = data.optionC || "";
     qForm.optionD = data.optionD || "";
-    // correctOption را از بک‌اند اگر داری می‌توانی بفرستی؛ فعلاً اگر نبود A بماند
   } catch (e) {
     console.error(e);
-    qError.value =
-      "خطا در دریافت سؤال: " + (e.message || "نامشخص");
+    qError.value = "خطا در دریافت سؤال: " + (e.message || "نامشخص");
   } finally {
     qLoading.value = false;
   }
@@ -499,7 +532,7 @@ async function saveQuestion() {
     const res = await fetch(
       `${API_BASE}/admin/competitions/${selectedCompetitionId.value}/question`,
       {
-        method: "PUT",          // 🔁 اینجا از POST به PUT تغییر کرد (اصلاح شد)
+        method: "PUT",
         headers: authHeaders(),
         body: JSON.stringify(body),
       }
@@ -512,8 +545,7 @@ async function saveQuestion() {
     qMessage.value = "سؤال با موفقیت ذخیره شد.";
   } catch (e) {
     console.error(e);
-    qError.value =
-      "خطا در ذخیره سؤال: " + (e.message || "نامشخص");
+    qError.value = "خطا در ذخیره سؤال: " + (e.message || "نامشخص");
   } finally {
     qSaving.value = false;
   }
@@ -853,4 +885,24 @@ button:disabled::after {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+.btn-danger {
+  background: linear-gradient(135deg, #f97373 0%, #ef4444 100%);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin: 0.25rem;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.6);
+}
+
 </style>

@@ -95,6 +95,11 @@ export const useAuthStore = defineStore("auth", {
           phone: res.data.phone,
           fullName: res.data.fullName,
           role: res.data.role,
+          status: res.data.status,
+          balance: res.data.balance,
+          totalWon: res.data.totalWon,
+          createdAt: res.data.createdAt,
+          lastActiveAt: res.data.lastActiveAt,
         };
 
         localStorage.setItem(USER_KEY, JSON.stringify(this.user));
